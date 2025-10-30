@@ -11,7 +11,7 @@ This batch file is an attempt to put together some CMD prompts that troubleshoot
 
 #Additional notes
 -Slightly interactive as user input is required towards the end of the program
--text changes colour at different stages
+-text changes colour from white to green once the program is initiated
 
 #Password
 ttscxll
