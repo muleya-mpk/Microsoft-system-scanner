@@ -17,4 +17,4 @@ This batch file is an attempt to put together some CMD prompts that troubleshoot
 ttscxll
 
 #Help
-I am struggling to make the program shutdown the computer if the user wants to initiate the boot up scan. I've implementing a class called "Shutdown" to no avail. Please walk me through any suggestions you may have
+I am struggling to make the program shutdown the computer if the user wants to initiate the boot up scan. I've tried implementing a class called "Shutdown" to no avail. Please walk me through any suggestions you may have
