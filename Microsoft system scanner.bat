@@ -13,7 +13,11 @@ echo Stage 2 complete. Confirm in the text if further action is required.
 
 echo Satge 3: Windows file verification
 sfc /scannow
-echo Stage 3 complete. Read through each stage and confirm no problems have been detected in the system files.
+echo Stage 3 complete. 
+
+echo stage 4: Defragmentation of drive C
+defrag c: /u/ v
+echo Stage 4 complete. Read through each stage and confirm no problems have been detected in the system files.
 pause;
 
 chkdsk /c /f /r 
