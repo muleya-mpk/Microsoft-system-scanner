@@ -24,7 +24,7 @@ chkdsk /c /f /r
 set /p input1 = Key in 1 to restart your computer or 2 to exit the program:  
 if %input1% == 2 exit
 if %input1% == 1 goto SHUTDOWN "System boot up scan intiated, it will begin once your computer restarts. This will take a while; Please leave PC plugged in and idle."
-echo System and drive scans ocmplete. See you in seven days.
+echo System and drive scans complete. See you in seven days.
 
 :SHUTDOWN
 shutdown /r /t 100 /c "System boot up scan intiated, it will begin once your computer restarts. This will take a while; Please leave PC plugged in and idle."
