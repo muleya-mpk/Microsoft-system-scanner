@@ -11,7 +11,7 @@ echo Stage 2: Diskdrive light scan
 chkdsk /c
 echo Stage 2 complete. Confirm in the text if further action is required.
 
-echo Satge 3: Windows file verification
+echo Satge 3: Windows file verification(Checks corrupted system files)
 sfc /scannow
 echo Stage 3 complete. 
 
@@ -23,7 +23,7 @@ pause;
 chkdsk /c /f /r 
 set /p input1 = Key in 1 to restart your computer or 2 to exit the program:  
 if %input1% == 2 exit
-if %input1% == 1 goto shutdown /r /t 100 /c "System boot up scan intiated, it will begin once your computer restarts. This will take a while; Please leave PC plugged in and idle."
+if %input1% == 1 goto SHUTDOWN "System boot up scan intiated, it will begin once your computer restarts. This will take a while; Please leave PC plugged in and idle."
 echo System and drive scans ocmplete. See you in seven days.
 
 :SHUTDOWN
