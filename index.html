@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SysGuard — Windows System Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c0a;
+    --surface: #0d1410;
+    --surface2: #111a14;
+    --border: #1a2e1e;
+    --green: #00ff6a;
+    --green-dim: #00c44f;
+    --green-dark: #003d17;
+    --amber: #ffb700;
+    --red: #ff3c3c;
+    --text: #c8e8d0;
+    --text-dim: #4a7a58;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Barlow Condensed', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,106,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,106,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2.5rem;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .logo-block {}
+  .logo-eyebrow {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--green);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .logo-title {
+    font-family: var(--display);
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: #fff;
+    text-shadow: 0 0 40px rgba(0,255,106,0.3);
+  }
+  .logo-title span { color: var(--green); }
+
+  .header-meta {
+    text-align: right;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+    margin-right: 6px;
+  }
+
+  /* ── Warning Banner ── */
+  .banner {
+    background: rgba(255, 183, 0, 0.07);
+    border: 1px solid rgba(255,183,0,0.3);
+    border-left: 3px solid var(--amber);
+    padding: 0.85rem 1.2rem;
+    margin-bottom: 2.5rem;
+    font-size: 0.75rem;
+    color: #d4a017;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+  .banner strong { display: block; margin-bottom: 0.2rem; color: var(--amber); }
+
+  /* ── Progress Bar ── */
+  .progress-track {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    height: 4px;
+    margin-bottom: 2.5rem;
+    position: relative;
+    animation: fadeDown 0.6s 0.15s ease both;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green-dark), var(--green));
+    width: 0%;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 10px var(--green);
+  }
+  .progress-label {
+    position: absolute;
+    right: 0;
+    top: -1.4rem;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+  }
+
+  /* ── Stage Grid ── */
+  .stages {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .stage-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    animation: fadeUp 0.5s ease both;
+  }
+  .stage-card:nth-child(1) { animation-delay: 0.2s; }
+  .stage-card:nth-child(2) { animation-delay: 0.28s; }
+  .stage-card:nth-child(3) { animation-delay: 0.36s; }
+  .stage-card:nth-child(4) { animation-delay: 0.44s; }
+  .stage-card:nth-child(5) { animation-delay: 0.52s; }
+
+  .stage-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--green-dark);
+    transition: background 0.3s;
+  }
+  .stage-card:hover { border-color: rgba(0,255,106,0.25); transform: translateY(-2px); }
+  .stage-card:hover::before { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  .stage-card.done { border-color: rgba(0,255,106,0.2); }
+  .stage-card.done::before { background: var(--green); }
+  .stage-card.skipped { opacity: 0.4; }
+
+  .stage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9rem;
+  }
+  .stage-num {
+    font-family: var(--display);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .stage-badge {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+  .badge-pending { border-color: var(--text-dim); color: var(--text-dim); }
+  .badge-done { border-color: var(--green); color: var(--green); }
+  .badge-warning { border-color: var(--amber); color: var(--amber); }
+
+  .stage-title {
+    font-family: var(--display);
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    margin-bottom: 0.4rem;
+  }
+  .stage-desc {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+
+  .cmd-block {
+    background: #050905;
+    border: 1px solid var(--border);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.7rem;
+    color: var(--green-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+  }
+  .cmd-text { white-space: nowrap; }
+  .cmd-prompt { color: var(--text-dim); margin-right: 0.4rem; }
+
+  .copy-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .copy-btn:hover { border-color: var(--green); color: var(--green); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  .stage-result {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+  }
+  .stage-result strong { color: var(--green); }
+  .stage-result .warn { color: var(--amber); }
+  .stage-result .err { color: var(--red); }
+
+  .mark-done-btn {
+    width: 100%;
+    margin-top: 0.9rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .mark-done-btn:hover { border-color: var(--green); color: var(--green); background: rgba(0,255,106,0.04); }
+  .stage-card.done .mark-done-btn { border-color: var(--green); color: var(--green); background: rgba(0,255,106,0.06); }
+
+  /* ── Final Actions ── */
+  .final-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.5s 0.6s ease both;
+  }
+  .section-label {
+    font-family: var(--display);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .action-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1rem;
+  }
+  .action-title {
+    font-family: var(--display);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.3rem;
+  }
+  .action-desc { font-size: 0.65rem; color: var(--text-dim); margin-bottom: 0.8rem; line-height: 1.5; }
+
+  .action-btn {
+    display: block;
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.2s;
+    text-align: center;
+    text-decoration: none;
+  }
+  .action-btn:hover { border-color: var(--green); color: var(--green); background: rgba(0,255,106,0.04); }
+  .action-btn.primary { border-color: var(--green); color: var(--green); }
+  .action-btn.primary:hover { background: rgba(0,255,106,0.1); }
+  .action-btn.danger { border-color: rgba(255,60,60,0.4); color: #ff7070; }
+  .action-btn.danger:hover { border-color: var(--red); background: rgba(255,60,60,0.06); }
+
+  /* ── Download Section ── */
+  .download-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    animation: fadeUp 0.5s 0.65s ease both;
+  }
+  .download-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.8rem;
+  }
+  .dl-card {
+    border: 1px dashed var(--border);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .dl-icon { font-size: 1.4rem; }
+  .dl-name { font-family: var(--display); font-weight: 700; font-size: 0.85rem; color: #fff; }
+  .dl-desc { font-size: 0.62rem; color: var(--text-dim); line-height: 1.5; }
+  .dl-btn {
+    margin-top: 0.4rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    padding: 0.4rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.2s;
+  }
+  .dl-btn:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 3rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+    animation: fadeUp 0.5s 0.7s ease both;
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--green); }
+    50%       { opacity: 0.4; box-shadow: 0 0 3px var(--green); }
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--surface2);
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-size: 0.7rem;
+    padding: 0.7rem 1.2rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    z-index: 999;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 600px) {
+    .action-grid { grid-template-columns: 1fr; }
+    .stages { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-block">
+      <div class="logo-eyebrow">Windows Maintenance Suite</div>
+      <div class="logo-title">SYS<span>GUARD</span></div>
+    </div>
+    <div class="header-meta">
+      <div><span class="status-dot"></span>READY</div>
+      <div>TARGET: Drive C: &nbsp;|&nbsp; OS: Windows 10/11</div>
+      <div id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- Warning Banner -->
+  <div class="banner">
+    <span>⚠</span>
+    <div>
+      <strong>Run as Administrator</strong>
+      All commands below require an elevated Command Prompt or PowerShell. Right-click CMD → "Run as administrator" before pasting any command.
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-track">
+    <div class="progress-fill" id="progressFill"></div>
+    <div class="progress-label" id="progressLabel">0 / 5 complete</div>
+  </div>
+
+  <!-- Stage Cards -->
+  <div class="stages" id="stagesGrid">
+
+    <div class="stage-card" id="card-1">
+      <div class="stage-header">
+        <span class="stage-num">Stage 01</span>
+        <span class="stage-badge badge-pending" id="badge-1">Pending</span>
+      </div>
+      <div class="stage-title">Disk Drive Status</div>
+      <div class="stage-desc">Queries hardware-level status of all connected disk drives. Expects "OK" for each drive listed. Any other value indicates a potential hardware failure.</div>
+      <div class="cmd-block">
+        <span class="cmd-text"><span class="cmd-prompt">C:\></span>wmic diskdrive get status</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'wmic diskdrive get status')">Copy</button>
+      </div>
+      <div class="stage-result">
+        <strong>✓ Good result:</strong> All entries show <code>OK</code><br>
+        <span class="warn">⚠ Caution:</span> Any value other than OK — back up data immediately and research the status code online.<br>
+        <span class="err">✗ Bad result:</span> <code>Pred Fail</code> means imminent drive failure.
+      </div>
+      <button class="mark-done-btn" onclick="markDone(1)">☐ &nbsp;Mark Stage Complete</button>
+    </div>
+
+    <div class="stage-card" id="card-2">
+      <div class="stage-header">
+        <span class="stage-num">Stage 02</span>
+        <span class="stage-badge badge-pending" id="badge-2">Pending</span>
+      </div>
+      <div class="stage-title">Filesystem Light Scan</div>
+      <div class="stage-desc">Runs a non-destructive filesystem check. Reports errors found without attempting to fix them. Safe to run on a live system.</div>
+      <div class="cmd-block">
+        <span class="cmd-text"><span class="cmd-prompt">C:\></span>chkdsk C: /scan</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'chkdsk C: /scan')">Copy</button>
+      </div>
+      <div class="stage-result">
+        <strong>✓ Good result:</strong> "Windows has scanned the file system and found no problems."<br>
+        <span class="warn">⚠ Caution:</span> If errors are found, proceed to the deep scan in the Final Actions section below.
+      </div>
+      <button class="mark-done-btn" onclick="markDone(2)">☐ &nbsp;Mark Stage Complete</button>
+    </div>
+
+    <div class="stage-card" id="card-3">
+      <div class="stage-header">
+        <span class="stage-num">Stage 03</span>
+        <span class="stage-badge badge-pending" id="badge-3">Pending</span>
+      </div>
+      <div class="stage-title">System File Verification</div>
+      <div class="stage-desc">Scans all protected Windows system files for corruption and attempts automatic repair using cached copies. This can take 10–20 minutes.</div>
+      <div class="cmd-block">
+        <span class="cmd-text"><span class="cmd-prompt">C:\></span>sfc /scannow</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'sfc /scannow')">Copy</button>
+      </div>
+      <div class="stage-result">
+        <strong>✓ Good result:</strong> "did not find any integrity violations"<br>
+        <span class="warn">⚠ Found &amp; fixed:</span> "found corrupt files and successfully repaired them" — run DISM next (Stage 5).<br>
+        <span class="err">✗ Could not repair:</span> Run DISM first, then re-run SFC.
+      </div>
+      <button class="mark-done-btn" onclick="markDone(3)">☐ &nbsp;Mark Stage Complete</button>
+    </div>
+
+    <div class="stage-card" id="card-4">
+      <div class="stage-header">
+        <span class="stage-num">Stage 04</span>
+        <span class="stage-badge badge-pending" id="badge-4">Pending</span>
+      </div>
+      <div class="stage-title">Drive Defragmentation</div>
+      <div class="stage-desc">Analyses and defragments drive C: with verbose output. Skip this if your C: drive is an SSD — Windows handles SSD optimisation automatically and manual defrag can reduce its lifespan.</div>
+      <div class="cmd-block">
+        <span class="cmd-text"><span class="cmd-prompt">C:\></span>defrag C: /u /v</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'defrag C: /u /v')">Copy</button>
+      </div>
+      <div class="stage-result">
+        <strong>✓ HDD only.</strong> Progress shown in real time with <code>/u</code>. Verbose report printed after.<br>
+        <span class="warn">⚠ SSD users:</span> Skip this stage entirely — Windows 10/11 auto-optimises SSDs weekly.
+      </div>
+      <button class="mark-done-btn" onclick="markDone(4)">☐ &nbsp;Mark Stage Complete</button>
+    </div>
+
+    <div class="stage-card" id="card-5">
+      <div class="stage-header">
+        <span class="stage-num">Stage 05</span>
+        <span class="stage-badge badge-pending" id="badge-5">Pending</span>
+      </div>
+      <div class="stage-title">DISM Image Scan</div>
+      <div class="stage-desc">Uses the Deployment Image Servicing tool to check the Windows component store for corruption. More thorough than SFC — can repair files that SFC cannot.</div>
+      <div class="cmd-block">
+        <span class="cmd-text"><span class="cmd-prompt">C:\></span>DISM /Online /Cleanup-Image /ScanHealth</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'DISM /Online /Cleanup-Image /ScanHealth')">Copy</button>
+      </div>
+      <div class="stage-result">
+        <strong>✓ Good result:</strong> "No component store corruption detected."<br>
+        <span class="err">✗ Corruption found:</span> Run <code>DISM /Online /Cleanup-Image /RestoreHealth</code> to repair, then re-run SFC.
+      </div>
+      <button class="mark-done-btn" onclick="markDone(5)">☐ &nbsp;Mark Stage Complete</button>
+    </div>
+
+  </div>
+
+  <!-- Final Actions -->
+  <div class="final-section">
+    <div class="section-label">Final Actions</div>
+    <div class="action-grid">
+      <div class="action-card">
+        <div class="action-title">Deep Filesystem Repair</div>
+        <div class="action-desc">Schedules a full chkdsk with automatic fix (<code>/f</code>) and bad sector recovery (<code>/r</code>) on next reboot. Only run this if Stage 2 found errors. Takes 1–3 hours at startup.</div>
+        <div class="cmd-block" style="margin-bottom:0.6rem">
+          <span class="cmd-text"><span class="cmd-prompt">C:\></span>chkdsk C: /f /r</span>
+          <button class="copy-btn" onclick="copyCmd(this, 'chkdsk C: /f /r')">Copy</button>
+        </div>
+        <div class="cmd-block" style="margin-bottom:0">
+          <span class="cmd-text"><span class="cmd-prompt">C:\></span>DISM /Online /Cleanup-Image /RestoreHealth</span>
+          <button class="copy-btn" onclick="copyCmd(this, 'DISM /Online /Cleanup-Image /RestoreHealth')">Copy</button>
+        </div>
+      </div>
+      <div class="action-card">
+        <div class="action-title">Scheduled Restart</div>
+        <div class="action-desc">If a deep scan or chkdsk was scheduled, restart Windows. A 100-second countdown is shown. Ensure all work is saved before running.</div>
+        <div class="cmd-block" style="margin-bottom:0.6rem">
+          <span class="cmd-text"><span class="cmd-prompt">C:\></span>shutdown /r /t 100 /c "Scan reboot"</span>
+          <button class="copy-btn" onclick="copyCmd(this, 'shutdown /r /t 100 /c \"Scan reboot\"')">Copy</button>
+        </div>
+        <button class="action-btn danger" onclick="abortShutdown()">Copy Abort Command</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Downloads -->
+  <div class="download-section">
+    <div class="section-label">Downloads</div>
+    <div class="download-grid">
+      <div class="dl-card">
+        <div class="dl-icon">⬛</div>
+        <div class="dl-name">Original .bat</div>
+        <div class="dl-desc">The original Microsoft_system_scanner.bat script — run directly in CMD as Administrator.</div>
+        <button class="dl-btn" onclick="downloadOriginal()">Download .bat</button>
+      </div>
+      <div class="dl-card">
+        <div class="dl-icon">🛠</div>
+        <div class="dl-name">Fixed .bat</div>
+        <div class="dl-desc">Corrected version with DISM typo fixed and improved prompts.</div>
+        <button class="dl-btn" onclick="downloadFixed()">Download fixed.bat</button>
+      </div>
+      <div class="dl-card">
+        <div class="dl-icon">📋</div>
+        <div class="dl-name">All Commands</div>
+        <div class="dl-desc">Plain text file with all 5 stage commands and the final actions.</div>
+        <button class="dl-btn" onclick="downloadTxt()">Download .txt</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>SysGuard v1.0 &nbsp;|&nbsp; For Windows 10 / 11</span>
+    <span>Run all commands as Administrator &nbsp;·&nbsp; Keep PC plugged in during scans</span>
+  </footer>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // Clock
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toTimeString().slice(0,8);
+  }
+  tick(); setInterval(tick, 1000);
+
+  // Progress
+  const doneSet = new Set();
+  function updateProgress() {
+    const pct = (doneSet.size / 5) * 100;
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent =
+      doneSet.size + ' / 5 complete';
+  }
+
+  function markDone(n) {
+    const card = document.getElementById('card-' + n);
+    const badge = document.getElementById('badge-' + n);
+    const btn = card.querySelector('.mark-done-btn');
+    if (doneSet.has(n)) {
+      doneSet.delete(n);
+      card.classList.remove('done');
+      badge.textContent = 'Pending';
+      badge.className = 'stage-badge badge-pending';
+      btn.innerHTML = '☐ &nbsp;Mark Stage Complete';
+    } else {
+      doneSet.add(n);
+      card.classList.add('done');
+      badge.textContent = 'Done';
+      badge.className = 'stage-badge badge-done';
+      btn.innerHTML = '☑ &nbsp;Stage Complete';
+    }
+    updateProgress();
+  }
+
+  // Copy
+  function copyCmd(btn, cmd) {
+    navigator.clipboard.writeText(cmd).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      showToast('Copied: ' + cmd);
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  function abortShutdown() {
+    navigator.clipboard.writeText('shutdown /a').then(() => {
+      showToast('Abort command copied: shutdown /a');
+    });
+  }
+
+  // Toast
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // Downloads
+  const originalBat = `@echo off\n\n:start\ncolor a\necho Drive and system scans initiated.\necho Stage 1: Diskdrive status\nwmic diskdrive get status\necho Stage 1 complete. If anything other "OK" is displayed please look for a solution online.\n\necho Stage 2: Diskdrive light scan\nchkdsk /c\necho Stage 2 complete. Confirm in the text if further action is required.\n\necho Stage 3: Windows file verification\nsfc /scannow\necho Stage 3 complete.\n\necho Stage 4: Defragmentation of drive C\ndefrag c: /u /v\necho Stage 4 complete.\n\necho Stage 5: DISM image corruption scan\nDSIM /Online /Cleanup-Image /ScanHealth\necho Stage 5 complete.\npause\n\nchkdsk /c /f /r\nset /p input1=Key in 1 to restart or 2 to exit: \nif %input1% == 2 exit\nif %input1% == 1 goto SHUTDOWN\n\n:SHUTDOWN\nshutdown /r /t 100 /c "System boot up scan initiated. This will take a while; Please leave PC plugged in and idle."\necho System and drive scans complete. See you in seven days.\n`;
+
+  const fixedBat = `@echo off\nsetlocal\ncolor 0a\n\necho ============================================\necho   SysGuard - Windows System Scanner\necho ============================================\necho.\n\necho [Stage 1/5] Disk Drive Hardware Status...\nwmic diskdrive get status\necho Stage 1 complete. If anything other than OK appears, investigate immediately.\npause\n\necho [Stage 2/5] Filesystem Light Scan...\nchkdsk C: /scan\necho Stage 2 complete. Review output above.\npause\n\necho [Stage 3/5] System File Verification (SFC)...\nsfc /scannow\necho Stage 3 complete.\npause\n\necho [Stage 4/5] Drive Defragmentation (HDD only - skip if SSD)...\ndefrag C: /u /v\necho Stage 4 complete.\npause\n\necho [Stage 5/5] DISM Image Health Scan...\nDISM /Online /Cleanup-Image /ScanHealth\necho Stage 5 complete. Review all output above.\npause\n\necho ============================================\necho All stages complete. Review results above.\necho ============================================\necho.\nset /p input1=Press 1 to schedule restart, or 2 to exit: \nif "%input1%"=="2" exit /b 0\nif "%input1%"=="1" goto SHUTDOWN\nexit /b 0\n\n:SHUTDOWN\nshutdown /r /t 100 /c "System boot scan initiated. Leave PC plugged in and idle. This will take a while."\necho Restarting in 100 seconds. Run 'shutdown /a' to cancel.\n`;
+
+  const txtCommands = `SysGuard - All Commands\n=======================\n\nAll commands require Administrator CMD/PowerShell.\n\nStage 1 - Disk Status:\n  wmic diskdrive get status\n\nStage 2 - Light Filesystem Scan:\n  chkdsk C: /scan\n\nStage 3 - System File Check:\n  sfc /scannow\n\nStage 4 - Defragment (HDD only):\n  defrag C: /u /v\n\nStage 5 - DISM Health Scan:\n  DISM /Online /Cleanup-Image /ScanHealth\n\nFinal - Deep Repair (if errors found):\n  chkdsk C: /f /r\n  DISM /Online /Cleanup-Image /RestoreHealth\n\nScheduled Restart:\n  shutdown /r /t 100 /c "Scan reboot"\n\nAbort Restart:\n  shutdown /a\n`;
+
+  function downloadFile(name, content) {
+    const a = document.createElement('a');
+    a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
+    a.download = name;
+    a.click();
+    showToast('Downloading ' + name);
+  }
+
+  function downloadOriginal() { downloadFile('Microsoft_system_scanner.bat', originalBat); }
+  function downloadFixed()    { downloadFile('SysGuard_fixed.bat', fixedBat); }
+  function downloadTxt()      { downloadFile('SysGuard_commands.txt', txtCommands); }
+</script>
+</body>
+</html>
